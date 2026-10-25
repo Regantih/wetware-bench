@@ -34,6 +34,7 @@ Results land in `results/results.json` + `results/scoreboard.md`.
 | `plasticity` | paired-pulse ratio, habituation | is it dynamic or a passive filter |
 | `stability` | memory capacity retained after drift | "is the computer still there tomorrow" |
 | `energy` | joules per sample at assumed wattage | the sustainability thesis |
+| `criticality` | branching σ + avalanche α on spontaneous activity | is it near the critical point where compute peaks |
 
 ## Substrates
 

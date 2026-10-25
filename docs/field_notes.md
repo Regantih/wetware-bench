@@ -36,6 +36,22 @@ decision criteria (docs/megaplan.md).
 
 ## Log
 
+### `criticality` is now a first-class probe (cycle 3)
+
+- **What:** `bench/probes/criticality.py` — drives any substrate with
+  zero input, measures avalanche branching σ and size exponent α on
+  spontaneous activity. 8th probe; identical contract on wetware later.
+- **Numbers that matter:** sim reads σ=1.01±0.0003 via the probe vs.
+  σ=1.64 via the fine-binned realdata pipeline — σ is
+  binning/threshold-sensitive, so the probe and the offline analyzer
+  answer slightly different questions (readout-channel excursions vs.
+  raw-electrode avalanches).
+- **Implication:** the suite now measures the thing the literature
+  claims matters most (near-critical dynamics), portably.
+- **Skeptic's note:** probe σ ~1 could partly reflect threshold tuning
+  (thresh = mean population rate); on wetware, report both σ and the
+  raw avalanche counts so reviewers can re-derive it.
+
 ### Criticality + directed connectivity on real organoids (cycle 2)
 
 - **What:** added order-1 binary transfer entropy and avalanche

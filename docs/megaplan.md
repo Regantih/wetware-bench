@@ -89,9 +89,11 @@ FinalSpark application submitted.
       (branching σ, size exponent α) in `bench/realdata.py`. Finding:
       real organoids are slightly supercritical (σ 1.1–1.2); sim
       overshoots (σ 1.64) — tunable via burst strength.
+- [x] Criticality promoted to a first-class probe:
+      `bench/probes/criticality.py` (σ, α, avalanche counts on
+      spontaneous activity — works identically on wetware later).
 - [ ] Remaining: stim-response characterization from recorded
-      stimulation sessions; port avalanche pipeline to a probe so
-      criticality becomes a first-class metric.
+      stimulation sessions.
 - [ ] **Characterize the channel** — from any recorded stimulation
       sessions: stim→response latency, dose-response, channel noise.
       Calibrates expectations for live runs + validates codec assumptions.
