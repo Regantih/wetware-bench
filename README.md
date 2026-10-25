@@ -10,6 +10,10 @@ potential (learns fast? computes? energy-efficient? still alive tomorrow?).
 The scoreboard tells you which claims hold up and where the real bottleneck
 is.
 
+## Demo
+
+Narrated walkthrough (2 min): [`demo/wetware_bench.mp4`](demo/wetware_bench.mp4)
+
 ## Run it
 
 ```
