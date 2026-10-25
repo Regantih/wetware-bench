@@ -14,24 +14,39 @@ suite produced. The deliverable at the end of the program is
 
 ## The loop (each iteration)
 
+This repo runs spec-driven development via the Elephant-Goldfish Model
+(EGM, vendored in `.devin/` — you are the Elephant; zero-context
+subagents are the Goldfish swarm).
+
 1. **Orient** — read `docs/megaplan.md`, `docs/field_notes.md`, and the
    latest `results/scoreboard.md`. Find the current phase and its gate.
 2. **Pick the highest-value unchecked item** in the current phase.
    Prefer measurement over machinery; prefer cheap probes before
    expensive ones.
-3. **Implement** — follow existing conventions: substrates implement
+3. **Spec (Elephant)** — for any non-trivial change, draft a short spec
+   at `docs/designs/<item>.md` (what/why/interface/risks) before
+   writing code. Trivial fixes may skip this.
+4. **Stress-test (Goldfish swarm)** — dispatch zero-context read-only
+   subagents against the spec using the personas in `.devin/agents/`
+   (design_critic, structural, implementation_readiness). They see only
+   the spec + code, never this conversation — that's the point. Resolve
+   findings before implementing; use `.devin/skills/egm_review*`
+   procedures for large changes.
+5. **Implement** — follow existing conventions: substrates implement
    `bench/substrate.py`'s `Substrate` contract; probes live in
    `bench/probes/` and return `ProbeResult`; baselines must stay
    honest controls, not strawmen.
-4. **Verify** — `python -m pytest tests/` must pass. Then run the
+6. **Verify** — `python -m pytest tests/` must pass. Then run the
    affected comparison multi-seed:
    `python -m bench.scoreboard --seeds 5 --out results`
-5. **Analyze** — write what the numbers mean into `docs/field_notes.md`
+7. **Analyze** — write what the numbers mean into `docs/field_notes.md`
    (template provided there). Always report mean±CI, never one seed.
-6. **Checkpoint** — tick megaplan checkboxes; use
+8. **Checkpoint** — tick megaplan checkboxes; use
    `bench.checkpoint.save_session()` after any learned state worth
-   keeping; update `README.md` if interfaces changed.
-7. **Propose next** — end each cycle with the single next action and
+   keeping; update `README.md` if interfaces changed. Periodically run
+   a drift check: do `docs/designs/*` still match the code? If not,
+   update the spec or flag it.
+9. **Propose next** — end each cycle with the single next action and
    its expected information gain.
 
 ## Commands

@@ -199,6 +199,54 @@ def avalanches(counts, thresh=1):
             "alpha_size": float(alpha)}     # ~1.5 = critical exponent
 
 
+def stim_response(times, chans, stim_events, pre_ms=50.0, post_ms=100.0,
+                  bin_ms=5.0):
+    """Evoked response around stimulation events.
+
+    stim_events: (n,3) rows of (t_seconds, electrode, amplitude).
+    Returns per-channel PSTH, latency (first post-stim bin exceeding
+    baseline + 3 sigma), gain-vs-amplitude slope, and response drift
+    (cosine sim of mean response vectors, first vs last third of trials).
+
+    Dynamic-threshold correction: post-stim counts are normalized by
+    the channel's own pre-stim rate — FinalSpark's detection threshold
+    rises during stimulation, so raw counts understate evoked activity.
+    """
+    ev = np.asarray(stim_events, dtype=float)
+    pre, post, bs = pre_ms / 1e3, post_ms / 1e3, bin_ms / 1e3
+    nb = int(post / bs)
+    n_ch = int(chans.max() + 1)
+    resp = np.zeros((len(ev), nb, n_ch))
+    base = np.zeros((len(ev), n_ch))
+    for k, (t0, _, _) in enumerate(ev):
+        pm = (times >= t0 - pre) & (times < t0)
+        np.add.at(base[k], chans[pm], 1)
+        for b in range(nb):
+            m = (times >= t0 + b * bs) & (times < t0 + (b + 1) * bs)
+            np.add.at(resp[k, b], chans[m], 1)
+    base_rate = base / pre                          # per-second baseline
+    evoked = resp.mean(axis=0)                      # (nb, n_ch)
+    # corrected evoked excess (spikes/bin above expected baseline)
+    excess = evoked - base_rate.mean(0)[None] * bs
+    lat = np.full(n_ch, np.nan)
+    thr = base_rate.mean(0) * bs + 3 * (resp.std(axis=0).mean(0) + 1e-9)
+    for c in range(n_ch):
+        hit = np.where(evoked[:, c] > thr[c])[0]
+        if len(hit):
+            lat[c] = hit[0] * bin_ms
+    amps = np.unique(ev[:, 2])
+    trial_excess = resp.sum(axis=1) - base_rate * post   # (n_trials, n_ch)
+    gain = np.array([trial_excess[ev[:, 2] == a].sum(1).mean()
+                     for a in amps])
+    k3 = max(1, len(ev) // 3)
+    v1 = resp[:k3].sum(axis=(0, 1)); v2 = resp[-k3:].sum(axis=(0, 1))
+    drift = float(v1 @ v2 / (np.linalg.norm(v1) * np.linalg.norm(v2) + 1e-9))
+    return {"n_trials": int(len(ev)), "n_amp_levels": int(len(amps)),
+            "psth": evoked, "latency_ms": lat,
+            "gain_vs_amp": dict(zip(amps.tolist(), gain.tolist())),
+            "drift_similarity": drift}
+
+
 def report(datasets, out=None):
     lines = ["# Real-data report — recorded organoid vs. simulated SNN", "",
              "| metric | " + " | ".join(d["label"] for d in datasets) + " |",
