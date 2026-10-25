@@ -70,8 +70,10 @@ def bin_counts(times, chans, n_ch=None, bin_s=1.0):
     return counts
 
 
-def analyze(counts, bin_s=1.0, label="recording"):
-    """Core metrics on a (n_bins, n_ch) count matrix."""
+def analyze(counts, bin_s=1.0, label="recording", fine=None):
+    """Core metrics on a (n_bins, n_ch) count matrix. If `fine` is given
+    (same recording at finer binning), also computes transfer entropy
+    and neuronal-avalanche statistics on it."""
     rates = counts.mean(axis=0) / bin_s                     # Hz per channel
     active = rates > 0.01
     # burstiness: Fano factor across bins, per channel
@@ -89,7 +91,7 @@ def analyze(counts, bin_s=1.0, label="recording"):
                 "max": float(np.max(cc))}
     else:
         conn = {"mean": 0.0, "max": 0.0}
-    return {
+    out = {
         "label": label,
         "duration_s": float(counts.shape[0] * bin_s),
         "n_channels": int(counts.shape[1]),
@@ -102,6 +104,10 @@ def analyze(counts, bin_s=1.0, label="recording"):
         "corr_mean": conn["mean"],
         "corr_max": conn["max"],
     }
+    if fine is not None:
+        out.update(transfer_entropy(fine))
+        out.update(avalanches(fine))
+    return out
 
 
 def sim_spontaneous(n_steps=9600, channels=8, bin=64, seed=0):
@@ -117,11 +123,94 @@ def sim_spontaneous(n_steps=9600, channels=8, bin=64, seed=0):
     return sp[:len(sp) - len(sp) % bin].reshape(-1, bin, channels).sum(1)
 
 
+def transfer_entropy(counts, n_pairs=10, seed=0):
+    """Order-1 binary transfer entropy between channel pairs (bits/bin).
+
+    TE_{i->j} = H(j_t | j_{t-1}) - H(j_t | j_{t-1}, i_{t-1}) — how much
+    knowing channel i's last bin reduces uncertainty about channel j's
+    next bin, beyond what j's own past already explains. Directed
+    connectivity, unlike symmetric correlation.
+    """
+    b = (counts > 0).astype(np.int8)
+    n_ch = b.shape[1]
+    rng = np.random.default_rng(seed)
+    pairs = [(i, j) for i in range(n_ch) for j in range(n_ch) if i != j]
+    if len(pairs) > n_pairs:
+        idx = rng.choice(len(pairs), n_pairs, replace=False)
+        pairs = [pairs[k] for k in idx]
+    te = []
+    for i, j in pairs:
+        x, y = b[:-1, i], b[1:, j]         # past of i, current j
+        yp = b[:-1, j]                     # past of j
+        # joint histogram over (y_past, x_past, y_now)
+        key = (yp << 2) | (x << 1) | y
+        cnt = np.bincount(key, minlength=8)
+        p = cnt / cnt.sum()
+        def P(*bits):  # marginal prob helper
+            return p.reshape(2, 2, 2)[bits]
+        val = 0.0
+        for yp_, x_, y_ in np.ndindex(2, 2, 2):
+            pj = P(yp_, x_, y_)
+            if pj <= 0:
+                continue
+            p_y_gx = (P(yp_, x_, y_)
+                      / (P(yp_, x_, 0) + P(yp_, x_, 1) + 1e-12))
+            p_y = (P(yp_, 0, y_) + P(yp_, 1, y_)) / \
+                  (P(yp_, 0, 0) + P(yp_, 0, 1) + P(yp_, 1, 0) + P(yp_, 1, 1) + 1e-12)
+            if p_y_gx > 0 and p_y > 0:
+                val += pj * np.log2(p_y_gx / p_y)
+        te.append(val)
+    te = np.array(te)
+    return {"te_mean_bits": float(te.mean()), "te_max_bits": float(te.max())}
+
+
+def avalanches(counts, thresh=1):
+    """Neuronal avalanches: runs of bins with >=thresh total spikes,
+    bounded by silent bins. Critical systems show size ~ power-law
+    (exponent ~-1.5) and branching parameter ~1."""
+    pop = counts.sum(axis=1)
+    in_av, sizes, durs = False, [], []
+    for v in pop:
+        if v >= thresh:
+            if not in_av:
+                sizes.append(0.0)
+                durs.append(0)
+                in_av = True
+            sizes[-1] += v
+            durs[-1] += 1
+        else:
+            in_av = False
+    if not sizes:
+        return {"n_avalanches": 0}
+    sizes, durs = np.array(sizes), np.array(durs)
+    # branching parameter: mean ratio of consecutive bin totals inside avalanches
+    ratios = [pop[t + 1] / pop[t] for t in range(len(pop) - 1)
+              if pop[t] >= thresh and pop[t + 1] >= thresh]
+    sigma = float(np.mean(ratios)) if ratios else 0.0
+    # crude power-law exponent: MLE for discrete sizes >= xmin
+    xmin = max(2, np.percentile(sizes, 50))
+    s = sizes[sizes >= xmin]
+    alpha = 1 + len(s) / max(np.log(s / (xmin - 0.5)).sum(), 1e-9)
+    return {"n_avalanches": int(len(sizes)),
+            "av_size_median": float(np.median(sizes)),
+            "av_size_max": float(sizes.max()),
+            "av_dur_median": float(np.median(durs)),
+            "branching_sigma": sigma,       # ~1 = critical, <1 sub, >1 super
+            "alpha_size": float(alpha)}     # ~1.5 = critical exponent
+
+
 def report(datasets, out=None):
     lines = ["# Real-data report — recorded organoid vs. simulated SNN", "",
              "| metric | " + " | ".join(d["label"] for d in datasets) + " |",
              "|---|" + "---|" * len(datasets)]
-    keys = [("duration_s", "duration (s)"), ("n_channels", "channels"),
+    keys = [("te_mean_bits", "transfer entropy mean (bits)"),
+            ("te_max_bits", "transfer entropy max (bits)"),
+            ("n_avalanches", "avalanches"),
+            ("av_size_median", "avalanche size (median)"),
+            ("av_size_max", "avalanche size (max)"),
+            ("branching_sigma", "branching param σ (~1=critical)"),
+            ("alpha_size", "avalanche size α (~1.5=critical)"),
+            ("duration_s", "duration (s)"), ("n_channels", "channels"),
             ("n_active", "active channels"), ("total_spikes", "spikes"),
             ("mean_rate_hz", "mean rate (Hz)"), ("max_rate_hz", "max rate (Hz)"),
             ("fano_factor", "Fano factor (burstiness)"),
@@ -129,7 +218,8 @@ def report(datasets, out=None):
             ("corr_mean", "mean |channel corr|"), ("corr_max", "max channel corr")]
     for k, label in keys:
         lines.append(f"| {label} | "
-                     + " | ".join(f"{d[k]:.3g}" for d in datasets) + " |")
+                     + " | ".join(f"{d[k]:.3g}" if k in d else "—"
+                                 for d in datasets) + " |")
     lines += ["",
               "- **Fano factor** >>1 means bursty/poisson-clustered activity; "
               "~1 means regular. Living MEA data is typically far burstier "
@@ -142,7 +232,10 @@ def report(datasets, out=None):
     text = "\n".join(lines)
     if out:
         Path(out).write_text(text, encoding="utf-8")
-    print(text)
+    try:
+        print(text)
+    except UnicodeEncodeError:  # windows cp1252 console
+        print(text.encode("ascii", "replace").decode())
     return text
 
 

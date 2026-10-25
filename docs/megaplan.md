@@ -85,8 +85,13 @@ FinalSpark application submitted.
       First finding: **the sim is ~200× too regular** (Fano 0.08 vs
       15–65) and ~4× too uncorrelated — bursts and co-activation are
       the dominant real dynamics our sim lacks.
-- [ ] Remaining: connectivity/criticality metrics, stim-response
-      characterization from recorded stimulation sessions.
+- [x] Connectivity/criticality: transfer entropy + avalanche analysis
+      (branching σ, size exponent α) in `bench/realdata.py`. Finding:
+      real organoids are slightly supercritical (σ 1.1–1.2); sim
+      overshoots (σ 1.64) — tunable via burst strength.
+- [ ] Remaining: stim-response characterization from recorded
+      stimulation sessions; port avalanche pipeline to a probe so
+      criticality becomes a first-class metric.
 - [ ] **Characterize the channel** — from any recorded stimulation
       sessions: stim→response latency, dose-response, channel noise.
       Calibrates expectations for live runs + validates codec assumptions.

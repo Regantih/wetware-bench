@@ -36,6 +36,27 @@ decision criteria (docs/megaplan.md).
 
 ## Log
 
+### Criticality + directed connectivity on real organoids (cycle 2)
+
+- **What:** added order-1 binary transfer entropy and avalanche
+  statistics (branching σ, size-distribution exponent α) to
+  `bench/realdata.py`; ran on all 4 fs363 organoids at 50 ms bins.
+- **Numbers that matter:** real σ = 1.11–1.22, α = 1.83–2.58,
+  TE mean 0.001–0.006 bits/bin, avalanches ~1–1.7k per 10 min with
+  median size 1 and max ~1200 spikes.
+- **Implication for the bench:** the organoids sit slightly
+  *supercritical* (σ>1, literature target for mature cultures ≈1.0,
+  α≈1.5). Our sim overshoots (σ=1.64 — bursts self-amplify too much)
+  and produces ~3× fewer, ~25× chunkier avalanches — real avalanches
+  are dominated by tiny events, ours by scripted big ones.
+- **Decision-criteria impact:** near-critical dynamics is the strongest
+  "real potential" signal so far — criticality is where computational
+  properties (dynamic range, memory, susceptibility) are theorized to
+  peak. Worth a dedicated probe eventually.
+- **Skeptic's note:** TE at 50 ms bins is weak everywhere (max ~0.017
+  bits) — directed coupling may need finer bins or longer recordings;
+  and σ>1 could partly reflect finite-size effects on 8 channels.
+
 ### Burst dynamics added to the sim (agent loop, cycle 1)
 
 - **What:** SimSNN now has (a) tonic rest drive on hidden neurons and
