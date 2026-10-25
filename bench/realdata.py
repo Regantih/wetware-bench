@@ -104,12 +104,17 @@ def analyze(counts, bin_s=1.0, label="recording"):
     }
 
 
-def sim_spontaneous(n_steps=1200, bin_steps=8, seed=0):
-    """SimSNN resting-state counts, same shape as real data (bins x ch)."""
+def sim_spontaneous(n_steps=9600, channels=8, bin=64, seed=0):
+    """SimSNN resting-state activity, sampled like an MEA: `channels`
+    randomly chosen hidden neurons (electrodes sit next to arbitrary
+    neurons, not the calibrated readout). Spikes are binned `bin`
+    steps at a time — returns (n_steps/bin, channels) counts."""
     from .substrates.snn_sim import SimSNN
     s = SimSNN(seed=seed)
     x = np.zeros(s.n_inputs)
-    return np.array([s.stimulate(x) for _ in range(n_steps)])
+    elec = s._rng.choice(s.n_hidden, channels, replace=False)
+    sp = np.array([s._step(x)[elec] for _ in range(n_steps)])
+    return sp[:len(sp) - len(sp) % bin].reshape(-1, bin, channels).sum(1)
 
 
 def report(datasets, out=None):
@@ -155,7 +160,7 @@ def main():
         ds.append(analyze(bin_counts(t, c, bin_s=a.bin_s), a.bin_s,
                           label=Path(a.csv).stem))
     if a.sim or not a.csv:
-        ds.append(analyze(sim_spontaneous(), bin_steps=8,
+        ds.append(analyze(sim_spontaneous(), a.bin_s * 8,
                           label="sim_snn (resting)"))
     report(ds, a.report)
 

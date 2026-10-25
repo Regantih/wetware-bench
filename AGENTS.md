@@ -81,11 +81,11 @@ driver — lazy, safe until credentials exist), any `+enc` (learned codec).
 
 ## Current state (update this block each cycle)
 
-- Phase 1 mostly built: stats layer, STDP substrate, codec flag,
-  checkpointing all exist. Open: burst dynamics in sim to match
-  measured Fano 15–65, connectivity/criticality metrics.
-- Phase 2 started: `docs/real_data_report.md` — real organoids are
-  ~200× burstier and ~4× more correlated than the sim. Sim must be
-  updated to match before wetware comparisons are meaningful.
+- Phase 1 built: stats layer, STDP substrate, codec flag,
+  checkpointing, burst dynamics (sim now matches organoid stats:
+  Fano 21.7 vs real 15–65, corr 0.39 vs 0.23–0.66). Open:
+  connectivity/criticality metrics on the dataset.
+- Phase 2 started: `docs/real_data_report.md` — sim now sits inside
+  measured ranges on 4/5 metrics.
 - Blocked on human: sending the FinalSpark application
   (`docs/finalspark_application.md`).

@@ -19,11 +19,19 @@ class SimSNN(Substrate):
                  n_hidden: int = 240, seed: int = 0, window: int = 8,
                  v_th: float = 1.0, rec_density: float = 0.12,
                  lr: float = 0.004, elig_decay: float = 0.9,
-                 noise: float = 0.05, policy_lr: float = 2.0):
+                 noise: float = 0.05, policy_lr: float = 2.0,
+                 burst_rate: float = 0.004, burst_amp: float = 1.6,
+                 burst_len: int = 45, rest_drive: float = 0.1):
         self.n_inputs, self.n_outputs, self.n_hidden = n_inputs, n_outputs, n_hidden
         self.window, self.v_th, self.lr = window, v_th, lr
         self.elig_decay, self.noise_amp = elig_decay, noise
         self.policy_lr = policy_lr
+        # network bursts — measured on real organoids: Fano 15-65, channel
+        # corr ~0.98 (docs/real_data_report.md). A burst recruits a fixed
+        # random ~40% of the network for ~burst_len steps; without this the
+        # sim is ~200x too regular and understates real coupling.
+        self.burst_rate, self.burst_amp, self.burst_len = (
+            burst_rate, burst_amp, burst_len)
         rng = np.random.default_rng(seed)
         self._rng = rng
         self.W_in = rng.normal(0, 0.4, (n_hidden, n_inputs))
@@ -35,10 +43,18 @@ class SimSNN(Substrate):
         # action populations ("vote up" vs "vote down")
         self.ro = np.arange(n_hidden - n_outputs, n_hidden)
         self.bias = np.zeros(n_hidden)
+        # spontaneous tonic activity: real cultures fire ~1 Hz at rest.
+        # Hidden neurons get a small resting drive (v_eq ~ v_th) so the
+        # network isn't silent between inputs.
+        self.bias[:self.ro[0]] = rest_drive
         # action-contingent policy layer: injects current into readout halves
         # proportional to the stimulus pattern. THIS is what learns — the
         # recurrent Hebbian rule alone can't credit the chosen action.
         self.W_act = np.zeros((n_outputs, n_inputs))
+        # bursts recruit a *different* ~50% of the network each time —
+        # fixed recruitment correlates channels too strongly vs. real
+        # organoids (measured mean |corr| 0.23-0.66, not ~0.9)
+        self._burst_frac = 0.5
         self._init_state()
         self._calibrate_readout()
 
@@ -63,6 +79,8 @@ class SimSNN(Substrate):
         self.r_bar = 0.0                    # running reward baseline
         self._last_act = None
         self._last_x = np.zeros(self.n_inputs)
+        self._burst_t = 0                   # steps remaining in current burst
+        self._burst_mask = np.zeros(self.n_hidden, dtype=bool)
 
     def reset(self) -> None:
         self._init_state()
@@ -71,6 +89,15 @@ class SimSNN(Substrate):
         eff = self.s_prev * self.fac * self.dep   # STP-scaled presynaptic drive
         I = (self.W_in @ x + self.W_rec @ eff + self.bias
              + self.noise_amp * self._rng.standard_normal(self.n_hidden))
+        # network burst: periodic population event on a fixed subset —
+        # the dominant dynamic in real MEA recordings
+        if self._burst_t > 0:
+            self._burst_t -= 1
+            I = I + self.burst_amp * self._burst_mask \
+                  - 0.4 * self.burst_amp * (~self._burst_mask)
+        elif self.burst_rate > 0 and self._rng.random() < self.burst_rate:
+            self._burst_t = int(self.burst_len * (0.5 + self._rng.random()))
+            self._burst_mask = self._rng.random(self.n_hidden) < self._burst_frac
         # policy layer: readout halves get extra drive from learned W_act
         I[self.ro] += self.W_act @ x
         self.v = self.v * 0.9 + I                  # leak
