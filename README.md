@@ -12,7 +12,9 @@ is.
 
 ## Demo
 
-Narrated walkthrough (2 min): [`demo/wetware_bench.mp4`](demo/wetware_bench.mp4)
+<video src="https://raw.githubusercontent.com/Regantih/wetware-bench/master/demo/wetware_bench.mp4" controls></video>
+
+Narrated walkthrough (2 min) — or download [`demo/wetware_bench.mp4`](demo/wetware_bench.mp4)
 
 ## Run it
 
